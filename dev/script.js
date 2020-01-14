@@ -74,8 +74,8 @@ function ParticlesCanvas ( opts ) {
 	this.ctx = this.node.getContext( '2d' );
 	this.objects = {};
 	this.resize();
-	this.onTick = opts.onTick;
 	this.onInit = opts.onInit;
+	this.onTick = opts.onTick;
 
 	window.addEventListener( 'resize', () => {
 		this.resize();
@@ -87,9 +87,11 @@ function ParticlesCanvas ( opts ) {
 		this.ctx.clearRect( 0, 0, this.rect.width, this.rect.height );
 
 		for ( let id in this.objects ) {
-			let object = this.objects[ id ];
-			object.live();
-			object.render();
+			this.objects[ id ].live();
+		}
+
+		for ( let id in this.objects ) {
+			this.objects[ id ].render();
 		}
 
 		if ( this.onTick instanceof Function ) this.onTick.call( this );
@@ -100,16 +102,6 @@ ParticlesCanvas.prototype.resize = function () {
 	this.rect = this.node.getBoundingClientRect();
 	this.node.setAttribute( 'width', String( this.rect.width ) );
 	this.node.setAttribute( 'height', String( this.rect.height ) );
-
-	this.area = [];
-
-	for ( let i = 0; i <= this.rect.width; i++ ) {
-		this.area[i] = [];
-
-		for ( let j = 0; j <= this.rect.height; j++ ) {
-			this.area[i][j] = [];
-		}
-	}
 };
 
 
@@ -137,20 +129,14 @@ Particle.defaults = {
 	ay: 0,
 	r: 3,
 	bg: 'rgba(255,255,255,1)',
-	id: null,
-	canvas: null,
-	address: {
-		x: 0,
-		y: 0
-	},
-	view: {
-		size: 100,
-		x1: null,
-		y1: null,
-		x2: null,
-		y2: null,
+	connection: {
+		length: 100,
+		quantity: 8,
 		targets: []
 	},
+	hp: null,
+	id: null,
+	canvas: null,
 	onInit: null,
 	onLive: null,
 	onRender: null
@@ -161,10 +147,17 @@ Particle.prototype.randomize = function () {
 	this.y = Math.random() * this.canvas.rect.height;
 	this.ax = Math.random() * 4 - 2;
 	this.ay = Math.random() * 4 - 2;
-	this.bg = `rgba(255,255,255,${Math.random()})`
 };
 
 Particle.prototype.live = function () {
+	if ( typeof( this.hp ) === 'number' ) {
+		if ( this.hp <= 0 ) {
+			this.die();
+		} else {
+			this.hp-=1;
+		}
+	}
+
 	// Движение
 	this.x+=this.ax;
 	this.y+=this.ay;
@@ -190,41 +183,18 @@ Particle.prototype.live = function () {
 		this.ay = -this.ay;
 	}
 
-	// Обновление обзора
-	this.view.x1 = ~~( this.x - this.view.size / 2 );
-	this.view.x2 = ~~( this.x + this.view.size / 2 );
-	this.view.y1 = ~~( this.y - this.view.size / 2 );
-	this.view.y2 = ~~( this.y + this.view.size / 2 );
+	// Определение соединений
+	this.connection.targets = [];
 
-	// Обновление адреса
-	if ( this.address.x <= this.canvas.rect.width && this.address.x >= 0 && this.address.y <= this.canvas.rect.height && this.address.y >= 0 ) {
-		let index = this.canvas.area[this.address.x][this.address.y].indexOf( this.id );
-		if ( index !== -1 ) this.canvas.area[ this.address.x ][ this.address.y ].splice( index, 1 );
-	}
+	for ( let id in this.canvas.objects ) {
+		let
+			target = this.canvas.objects[ id ],
+			distance = Math.sqrt( Math.pow( this.x - target.x, 2 ) + Math.pow( this.y - target.y, 2 ) );
 
-	this.address.x = ~~this.x;
-	this.address.y = ~~this.y;
-
-	if ( this.address.x <= this.canvas.rect.width && this.address.x >= 0 && this.address.y <= this.canvas.rect.height && this.address.y >= 0 ) {
-		this.canvas.area[ this.address.x ][ this.address.y ].push( this.id );
-	}
-
-	// Обновление списка видимых обьектов
-	this.view.targets = [];
-
-	for ( let x = this.view.x1; x < this.view.x2; x++ ) {
-		if ( x >= 0 && x <= this.canvas.rect.width ) {
-			for ( let y = this.view.y1; y < this.view.y2; y++ ) {
-				if ( y >= 0 && y <= this.canvas.rect.height ) {
-					let adress = this.canvas.area[ x ][ y ];
-
-					for ( let i = 0; i < adress.length; i++ ) {
-						if ( this !== this.canvas.objects[ adress[ i ] ] ) {
-							this.view.targets.push( adress[ i ] );
-						}
-					}
-				}
-			}
+		if ( distance < this.connection.length && this.connection.targets.length < this.connection.quantity ) {
+			this.connection.targets.push( target );
+		} else if ( this.connection.targets.length >= this.connection.quantity ) {
+			break;
 		}
 	}
 
@@ -239,9 +209,8 @@ Particle.prototype.render = function () {
 	this.canvas.ctx.fill();
 	this.canvas.ctx.closePath();
 
-	// Отрисовка полосок к видимым обьектам
-	this.view.targets.forEach( ( targetId ) => {
-		let target = this.canvas.objects[ targetId ];
+	// Отрисовка соединений
+	this.connection.targets.forEach( ( target ) => {
 		this.canvas.ctx.strokeStyle = this.bg;
 		this.canvas.ctx.beginPath();
 		this.canvas.ctx.moveTo( this.x, this.y );
@@ -254,6 +223,10 @@ Particle.prototype.render = function () {
 	if ( this.onRender instanceof Function ) this.onRender.call( this );
 };
 
+Particle.prototype.die = function () {
+	delete this.canvas.objects[ this.id ];
+};
+
 
 // Init
 document.addEventListener( 'DOMContentLoaded', function () {
@@ -261,31 +234,30 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		canvas = new ParticlesCanvas({
 			node: document.querySelector( '.particles-canvas' ),
 			onInit: function () {
-				for ( let i = 0; i < 100; i++ ) {
-					let object = new Particle({ canvas: this });
+				for ( let i = 0; i < 500; i++ ) {
+					let object = new Particle({
+						bg: 'rgba(0,200,100,.1)',
+						canvas: this
+					});
+
 					object.randomize();
 				}
 			},
 			onTick: function () {
 				msg( `Objects: ${Object.keys( this.objects ).length}`, { id: 'keysLength' } );
-			}
+			},
 		}),
 		unit = new Particle({
 			x: ~~(canvas.rect.width/2),
 			y: ~~(canvas.rect.height/2),
-			ax: 0,
-			ay: 0,
 			r: 5,
 			bg: 'rgba(255,0,0,.5)',
 			id: 'unit',
-			canvas: canvas,
-			view: {
-				size: 250
-			}
+			canvas: canvas
 		});
 
 	canvas.node.addEventListener( 'mousemove', function ( event ) {
 		unit.x = event.clientX;
 		unit.y = event.clientY;
-	})
+	});
 });
