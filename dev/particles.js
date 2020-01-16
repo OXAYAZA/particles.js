@@ -8,6 +8,7 @@ function merge( source, merged ) {
 	for ( let key in merged ) {
 		if (
 			merged[ key ] instanceof Object
+			&& !( merged[ key ] instanceof Color )
 			&& !( merged[ key ] instanceof Array )
 			&& !( merged[ key ] instanceof Node )
 			&& !( merged[ key ] instanceof Function )
@@ -79,6 +80,8 @@ function ParticlesCanvas ( opts ) {
 	this.resize();
 	this.onInit = opts.onInit;
 	this.onTick = opts.onTick;
+	this.timeoutId = null;
+	this.node.particlesCanvas = this;
 
 	window.addEventListener( 'resize', () => {
 		this.resize();
@@ -86,26 +89,33 @@ function ParticlesCanvas ( opts ) {
 
 	if ( this.onInit instanceof Function ) this.onInit.call( this );
 
-	setInterval( () => {
-		this.ctx.clearRect( 0, 0, this.rect.width, this.rect.height );
-		this.array = Object.values( this.objects );
-
-		for ( let id in this.objects ) {
-			this.objects[ id ].live();
-		}
-
-		for ( let id in this.objects ) {
-			this.objects[ id ].render();
-		}
-
-		if ( this.onTick instanceof Function ) this.onTick.call( this );
-	}, 40 );
+	this.play();
 }
 
 ParticlesCanvas.prototype.resize = function () {
 	this.rect = this.node.getBoundingClientRect();
 	this.node.setAttribute( 'width', String( this.rect.width ) );
 	this.node.setAttribute( 'height', String( this.rect.height ) );
+};
+
+ParticlesCanvas.prototype.pause = function () {
+	clearTimeout( this.timeoutId );
+};
+
+ParticlesCanvas.prototype.play = function () {
+	this.timeoutId = setInterval( () => {
+		this.tick();
+	}, 40 );
+};
+
+ParticlesCanvas.prototype.tick = function () {
+	this.ctx.clearRect( 0, 0, this.rect.width, this.rect.height );
+	this.array = Object.values( this.objects );
+
+	for ( let id in this.objects ) this.objects[ id ].live();
+	for ( let id in this.objects ) this.objects[ id ].render();
+
+	if ( this.onTick instanceof Function ) this.onTick.call( this );
 };
 
 
@@ -127,14 +137,13 @@ function Particle ( opts ) {
 }
 
 Particle.defaults = {
-	$: [],
 	x: 0,
 	y: 0,
 	ax: 0,
 	ay: 0,
 	r: 3,
 	theme: {
-		body: 'rgba(255,255,255,1)',
+		body: 'rgba(255,255,255,.1)',
 		connection: null,
 	},
 	connection: {
@@ -142,6 +151,7 @@ Particle.defaults = {
 		quantity: 5,
 		targets: []
 	},
+	state: null,
 	hp: null,
 	id: null,
 	canvas: null,
@@ -153,8 +163,8 @@ Particle.defaults = {
 Particle.prototype.randomize = function () {
 	this.x = Math.random() * this.canvas.rect.width;
 	this.y = Math.random() * this.canvas.rect.height;
-	// this.ax = Math.random() * 4 - 2;
-	// this.ay = Math.random() * 4 - 2;
+	this.ax = Math.random() * 4 - 2;
+	this.ay = Math.random() * 4 - 2;
 };
 
 Particle.prototype.live = function () {
@@ -192,19 +202,11 @@ Particle.prototype.live = function () {
 	}
 
 	// Определение соединений
-	// this.connection.targets = [];
-	//
-	// for ( let id in this.canvas.objects ) {
-	// 	let
-	// 		target = this.canvas.objects[ id ],
-	// 		distance = Math.sqrt( Math.pow( this.x - target.x, 2 ) + Math.pow( this.y - target.y, 2 ) );
-	//
-	// 	if ( distance < this.connection.length && this.connection.targets.length < this.connection.quantity ) {
-	// 		this.connection.targets.push( target );
-	// 	} else if ( this.connection.targets.length >= this.connection.quantity ) {
-	// 		break;
-	// 	}
-	// }
+	this.checkConnections();
+
+	if ( this.connection.targets.length < this.connection.quantity ) {
+		this.updateConnections( this.connection.quantity - this.connection.targets.length );
+	}
 
 	if ( this.onLive instanceof Function ) this.onLive.call( this );
 };
@@ -219,7 +221,7 @@ Particle.prototype.render = function () {
 
 	// Отрисовка соединений
 	this.connection.targets.forEach( ( target ) => {
-		this.canvas.ctx.strokeStyle = this.theme.connection || target.theme.body;
+		this.canvas.ctx.strokeStyle = this.theme.connection || this.theme.body;
 		this.canvas.ctx.beginPath();
 		this.canvas.ctx.moveTo( this.x, this.y );
 		this.canvas.ctx.lineTo( target.x, target.y );
@@ -227,14 +229,64 @@ Particle.prototype.render = function () {
 		this.canvas.ctx.closePath();
 	});
 
-	// Отрисовка идентификатора
-	this.canvas.ctx.font = `${this.r * 3}px sans-serif`;
-	this.canvas.ctx.fillText( this.id, this.x + this.r * 2, this.y + this.r );
-
 	// Колбек для дополнительных отрисовок
 	if ( this.onRender instanceof Function ) this.onRender.call( this );
 };
 
 Particle.prototype.die = function () {
 	delete this.canvas.objects[ this.id ];
+};
+
+Particle.prototype.distanceTo = function ( target ) {
+	return Math.sqrt( Math.pow( this.x - target.x, 2 ) + Math.pow( this.y - target.y, 2 ) );
+};
+
+Particle.prototype.updateConnections = function ( n ) {
+	let tmp = this.canvas.array.slice();
+
+	tmp.forEach( ( object, index ) => {
+		if ( object.id === this.id ) {
+			delete tmp[ index ];
+		}
+
+		this.connection.targets.forEach( ( target ) => {
+			if ( object.id === target.id ) {
+				delete tmp[ index ];
+			}
+		});
+	});
+
+	tmp = tmp.filter( ( object ) => {
+		return object !== null;
+	});
+
+	tmp.sort( ( a, b ) => {
+		let
+			x1 = this.distanceTo( a ),
+			x2 = this.distanceTo( b );
+
+		return x1 - x2;
+	});
+
+	tmp = tmp.slice( 0, n );
+
+	tmp.forEach( ( target, index ) => {
+		if ( this.distanceTo( target ) > this.connection.length ) {
+			delete tmp[ index ];
+		}
+	});
+
+	tmp = tmp.filter( ( object ) => {
+		return object !== null;
+	});
+
+	this.connection.targets = this.connection.targets.concat( tmp );
+};
+
+Particle.prototype.checkConnections = function () {
+	this.connection.targets.forEach( ( target, index, targets ) => {
+		if ( this.distanceTo( target ) > this.connection.length ) {
+			targets.splice( index, 1 );
+		}
+	});
 };

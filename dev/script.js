@@ -1,15 +1,15 @@
 document.addEventListener( 'DOMContentLoaded', function () {
 	let
+		btnPlay = document.querySelector( '#play' ),
+		btnPause = document.querySelector( '#pause' ),
+		btnTick = document.querySelector( '#tick' ),
 		canvas = new ParticlesCanvas({
 			node: document.querySelector( '.particles-canvas' ),
 			onInit: function () {
 				for ( let i = 0; i < 300; i++ ) {
 					let
 						object = new Particle({
-							canvas: this,
-							theme: {
-								body: `rgb(${55 + ~~(Math.random() * 100)},${55 + ~~(Math.random() * 100)},${55 + ~~(Math.random() * 100)})`
-							}
+							canvas: this
 						});
 
 					object.randomize();
@@ -17,67 +17,42 @@ document.addEventListener( 'DOMContentLoaded', function () {
 			},
 			onTick: function () {
 				msg( `Objects: ${Object.keys( this.objects ).length}`, { id: 'keysLength' } );
-			},
+			}
 		}),
 		unit = new Particle({
 			x: ~~(canvas.rect.width/2),
 			y: ~~(canvas.rect.height/2),
-			r: 8,
+			r: 10,
 			id: 'unit',
 			canvas: canvas,
-			onInit: function () {
-				console.log( this );
-
-				this.distanceTo = function ( target ) {
-					return Math.sqrt( Math.pow( this.x - target.x, 2 ) + Math.pow( this.y - target.y, 2 ) );
-				};
-
-				this.updateConnections = function ( n ) {
-					msg( `Require ${n} connections (${this.canvas.array.length})`, { id: 'connections', dur: 100, log: true } );
-
-					this.canvas.array.sort( ( a, b ) => {
-						let
-							x1 = this.distanceTo( a ),
-							x2 = this.distanceTo( b );
-
-						a.$ = x1;
-						b.$ = x2;
-
-						return x1 - x2;
-					});
-
-					this.connection.targets = this.canvas.array.slice( 0, n );
-
-					console.log( this.canvas.array );
-				}
+			theme: {
+				body: 'rgba(255,0,0,1)',
 			},
-			onLive: function () {
-				if ( this.connection.targets.length < this.connection.quantity ) {
-					this.updateConnections( this.connection.quantity - this.connection.targets.length );
-				}
-
-				// for ( let id in this.canvas.objects ) {
-				// 	let
-				// 		target = this.canvas.objects[ id ],
-				// 		distance = Math.sqrt( Math.pow( this.x - target.x, 2 ) + Math.pow( this.y - target.y, 2 ) );
-				//
-				// 	if ( distance < this.connection.length && this.connection.targets.length < this.connection.quantity ) {
-				// 		this.connection.targets.push( target );
-				// 	} else if ( this.connection.targets.length >= this.connection.quantity ) {
-				// 		break;
-				// 	}
-				// }
-
-				let targetIds = this.connection.targets.map( function ( object ) {
-					return object.id;
-				});
-
-				msg( `Unit: ${this.x}:${this.y} ${targetIds}`, { id: this.id } );
+			onRender: function () {
+				this.canvas.ctx.font = `${this.r * 1.5}px sans-serif`;
+				this.canvas.ctx.fillStyle = 'rgb(0,0,0)';
+				this.canvas.ctx.fillText( `${this.connection.targets.length}`, this.x - this.r * 0.5, this.y + this.r * 0.5 );
+				// this.canvas.ctx.fillText( this.id, this.x + this.r * 2, this.y + this.r );
 			}
 		});
 
-	// canvas.node.addEventListener( 'mousemove', function ( event ) {
-	// 	unit.x = event.clientX;
-	// 	unit.y = event.clientY;
-	// });
+	btnPlay.addEventListener( 'click', function() {
+		canvas.play();
+		console.log( 'PLAY' );
+	});
+
+	btnPause.addEventListener( 'click', function() {
+		canvas.pause();
+		console.log( 'PAUSE' );
+	});
+
+	btnTick.addEventListener( 'click', function() {
+		canvas.tick();
+		console.log( 'TICK' );
+	});
+
+	canvas.node.addEventListener( 'mousemove', function ( event ) {
+		unit.x = event.clientX;
+		unit.y = event.clientY;
+	});
 });
