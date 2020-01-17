@@ -1,3 +1,7 @@
+function objectTag ( data ) {
+	return Object.prototype.toString.call( data ).slice( 8, -1 );
+}
+
 /**
  * Слияние обьектов
  * @param {Object} source
@@ -6,15 +10,7 @@
  */
 function merge( source, merged ) {
 	for ( let key in merged ) {
-		if (
-			merged[ key ] instanceof Object
-			&& !( merged[ key ] instanceof Color )
-			&& !( merged[ key ] instanceof Array )
-			&& !( merged[ key ] instanceof Node )
-			&& !( merged[ key ] instanceof Function )
-			&& !( merged[ key ] instanceof ParticlesCanvas )
-			&& !( merged[ key ] instanceof Particle )
-		) {
+		if ( objectTag( merged[ key ] ) === 'Object' ) {
 			if ( typeof( source[ key ] ) !== 'object' ) source[ key ] = {};
 			source[ key ] = merge( source[ key ], merged[ key ] );
 		} else {
@@ -92,6 +88,12 @@ function ParticlesCanvas ( opts ) {
 	this.play();
 }
 
+Object.defineProperty( ParticlesCanvas.prototype, Symbol.toStringTag, {
+	get: function () {
+		return 'ParticlesCanvas';
+	}
+});
+
 ParticlesCanvas.prototype.resize = function () {
 	this.rect = this.node.getBoundingClientRect();
 	this.node.setAttribute( 'width', String( this.rect.width ) );
@@ -112,8 +114,13 @@ ParticlesCanvas.prototype.tick = function () {
 	this.ctx.clearRect( 0, 0, this.rect.width, this.rect.height );
 	this.array = Object.values( this.objects );
 
-	for ( let id in this.objects ) this.objects[ id ].live();
-	for ( let id in this.objects ) this.objects[ id ].render();
+	for ( let id in this.objects ) {
+		this.objects[ id ].live();
+	}
+
+	for ( let id in this.objects ) {
+		this.objects[ id ].render();
+	}
 
 	if ( this.onTick instanceof Function ) this.onTick.call( this );
 };
@@ -123,6 +130,13 @@ function Particle ( opts ) {
 	// Слияние с параметрами по умолчанию и новыми
 	merge( this, Particle.defaults );
 	merge( this, opts );
+
+	// Обработка цветов
+	for ( let key in this.theme ) {
+		if ( objectTag( this.theme[ key ] ) === 'String' ) {
+			this.theme[ key ] = Color.fromString( this.theme[ key ] );
+		}
+	}
 
 	// Генерация идентификатора если небыл задан
 	if ( !this.id ) {
@@ -136,6 +150,12 @@ function Particle ( opts ) {
 	if ( this.onInit instanceof Function ) this.onInit.call( this );
 }
 
+Object.defineProperty( Particle.prototype, Symbol.toStringTag, {
+	get: function () {
+		return 'Particle';
+	}
+});
+
 Particle.defaults = {
 	x: 0,
 	y: 0,
@@ -143,11 +163,12 @@ Particle.defaults = {
 	ay: 0,
 	r: 3,
 	theme: {
-		body: 'rgba(255,255,255,.1)',
-		connection: null,
+		body: 'rgba(255,255,255,.4)',
+		connection: 'rgba(255,255,255,.2)'
 	},
 	connection: {
 		length: 100,
+		width: 1,
 		quantity: 5,
 		targets: []
 	},
@@ -221,7 +242,13 @@ Particle.prototype.render = function () {
 
 	// Отрисовка соединений
 	this.connection.targets.forEach( ( target ) => {
-		this.canvas.ctx.strokeStyle = this.theme.connection || this.theme.body;
+		let tmp = new Color( this.theme.connection );
+		tmp.a = tmp.a * ( 1 - this.distanceTo( target ) / this.connection.length );
+
+		this.canvas.ctx.strokeStyle = tmp.toString();
+		this.canvas.ctx.lineCap = 'round';
+		this.canvas.ctx.lineWidth = this.connection.width;
+
 		this.canvas.ctx.beginPath();
 		this.canvas.ctx.moveTo( this.x, this.y );
 		this.canvas.ctx.lineTo( target.x, target.y );
@@ -289,4 +316,8 @@ Particle.prototype.checkConnections = function () {
 			targets.splice( index, 1 );
 		}
 	});
+};
+
+Particle.prototype.toString = function () {
+	return '[object Particle]';
 };

@@ -1,5 +1,5 @@
 function Color ( params ) {
-	Object.assign( this, params );
+	Object.assign( this, Color.defaults, params );
 }
 
 Color.defaults = {
@@ -9,14 +9,24 @@ Color.defaults = {
 	a: 1,
 };
 
-Color.fromString = function ( string ) {
-	
+Color.fromString = function ( str ) {
+	if ( /^\s*rgba\s*\(/i.test( str ) ) {
+		let tmp = str.match( /^\s*rgba\s*\(\s*(\d*)\s*,\s*(\d*)\s*,\s*(\d*)\s*,\s*([\d.]*)\s*\)/i );
+		return new Color({ r: tmp[1], g: tmp[2], b: tmp[3], a: tmp[4] });
+	} else if ( /^\s*rgb\s*\(/i.test( str ) ) {
+		let tmp = str.match( /^\s*rgb\s*\(\s*(\d*)\s*,\s*(\d*)\s*,\s*(\d*)\s*\)/i );
+		return new Color({ r: tmp[1], g: tmp[2], b: tmp[3] });
+	} else {
+		throw new Error ( 'Color parse error' );
+	}
 };
 
-Color.hex2rgb = function ( string ) {
-	
+Color.prototype.toString = function () {
+	return `rgba(${this.r},${this.g},${this.b},${this.a})`;
 };
 
-Color.toString = function () {
-	return `rgba(${this.r},${this.g},${this.b},${this.a})`
-};
+Object.defineProperty( Color.prototype, Symbol.toStringTag, {
+	get: function () {
+		return 'Color';
+	}
+});
