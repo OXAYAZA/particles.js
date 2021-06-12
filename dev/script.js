@@ -6,37 +6,15 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		canvas = new ParticlesCanvas({
 			node: document.querySelector( '.particles-canvas' ),
 			onInit: function () {
-				for ( let i = 0; i < 2000; i++ ) {
+				for ( let i = 0; i < 400; i++ ) {
 					let object = new Particle({
 						r: 3,
 						canvas: this,
 						theme: {
-							body: 'rgba(0,0,0,.01)',
-							connection: 'rgba(0,0,0,.1)'
-						},
-						connection: {
-							quantity: 0
+							body: 'rgba(255,0,0,.8)',
+							connection: 'rgba(255,0,0,.5)'
 						}
 					});
-
-					object.randomize();
-				}
-
-				for ( let i = 0; i < 6; i++ ) {
-					let
-						object = new Particle({
-							r: 1,
-							canvas: this,
-							theme: {
-								body: 'rgba(0,0,0,0)',
-								connection: 'rgba(0,0,0,1)',
-							},
-							connection: {
-								length: 300,
-								width: 6,
-								quantity: 100
-							}
-						});
 
 					object.randomize();
 				}
@@ -44,8 +22,8 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		});
 
 	btnPlay.addEventListener( 'click', function() {
-		canvas.play();
-		console.log( 'PLAY' );
+		canvas.run();
+		console.log( 'RUN' );
 	});
 
 	btnPause.addEventListener( 'click', function() {

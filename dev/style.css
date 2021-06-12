@@ -24,18 +24,20 @@ body {
 }
 
 .particles-canvas:hover {
-	cursor: none;
+	/*cursor: none;*/
 }
 
 .control {
 	position: absolute;
 	bottom: 10px;
 	right: 10px;
+	z-index: 1;
 }
 
 .btn {
 	user-select: none;
 }
+
 .btn:hover {
 	cursor: pointer;
 }
